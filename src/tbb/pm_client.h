@@ -44,6 +44,10 @@ public:
         return my_max_workers;
     }
 
+    unsigned int reserved_slots() const {
+        return my_arena.my_num_reserved_slots;
+    }
+
     int update_request(int mandatory_delta, int workers_delta) {
         auto min_max_workers = my_arena.update_request(mandatory_delta, workers_delta);
         int delta = min_max_workers.second - my_max_workers;

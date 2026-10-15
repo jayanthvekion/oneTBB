@@ -149,8 +149,8 @@ public:
     void request_permit(tcm_client_id_t client_id) {
         __TBB_ASSERT(tcm_request_permit, nullptr);
 
-        my_permit_request.max_sw_threads = max_workers();
-        my_permit_request.min_sw_threads = my_permit_request.max_sw_threads == 0 ? 0 : min_workers();
+        my_permit_request.max_sw_threads = reserved_slots() + max_workers();
+        my_permit_request.min_sw_threads = std::min(int(reserved_slots()), min_workers());
 
         if (my_permit_request.constraints_size > 0) {
             my_permit_request.cpu_constraints->min_concurrency = my_permit_request.min_sw_threads;
@@ -166,6 +166,12 @@ public:
     void deactivate_permit() {
          __TBB_ASSERT(tcm_deactivate_permit, nullptr);
         tcm_result_t res = tcm_deactivate_permit(my_permit_handle);
+        __TBB_ASSERT_EX(res == TCM_RESULT_SUCCESS, nullptr);
+    }
+
+    void idle_permit() {
+        __TBB_ASSERT(tcm_idle_permit, nullptr);
+        tcm_result_t res = tcm_idle_permit(my_permit_handle);
         __TBB_ASSERT_EX(res == TCM_RESULT_SUCCESS, nullptr);
     }
 
@@ -320,7 +326,7 @@ void tcm_adaptor::adjust_demand(pm_client& c, int mandatory_delta, int workers_d
         if (workers_delta == 0) return;
 
         if (client.max_workers() == 0) {
-            client.deactivate_permit();
+            client.idle_permit();
         } else {
             client.request_permit(my_impl->client_id);
         }

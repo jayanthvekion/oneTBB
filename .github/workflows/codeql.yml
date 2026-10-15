@@ -34,7 +34,7 @@ permissions:
 
 jobs:
   analyze:
-    name: Analyze (${{ matrix.language }})
+    name: Analyze (${{ matrix.language }}, build-mode=${{ matrix.build-mode }})
     runs-on: ubuntu-latest
     # timeout-minutes:
     permissions:
@@ -49,7 +49,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ["cpp", "python"]
+        language: ["cpp"]
+        build-mode: ["none", "autobuild"]
+        exclude:
+          - build-mode: ${{ github.event_name == 'pull_request' && 'autobuild' || '' }}
+        include:
+          - language: python
+            build-mode: none
 
     steps:
       - name: Harden Runner
@@ -63,28 +69,24 @@ jobs:
       - name: Increase swap space
         if: matrix.language == 'cpp'
         run: |
-          swap_dir=/mnt
-          mountpoint -q /mnt || swap_dir=/
-          swapon --show
-          free -h
           sudo swapoff -a
-          sudo rm -f /mnt/swapfile
-          sudo fallocate -l 20G "${swap_dir%/}/codeql.swap"
-          sudo chmod 600 "${swap_dir%/}/codeql.swap"
-          sudo mkswap "${swap_dir%/}/codeql.swap"
-          sudo swapon "${swap_dir%/}/codeql.swap"
-          free -h
-          df -h / /mnt
+          sudo rm -f /swapfile
+          sudo fallocate -l 20G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
 
     # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
         uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
         with:
           languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
 
     # Autobuild attempts to build any compiled languages  (C/C++, C#, or Java).
     # If this step fails, then you should remove it and run the build manually (see below)
       - name: Autobuild
+        if: matrix.build-mode == 'autobuild'
         uses: github/codeql-action/autobuild@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
 
     # If the analyze step fails for one of the languages you are analyzing with
@@ -108,4 +110,4 @@ jobs:
         env:
           _JAVA_OPTIONS: ${{ matrix.language == 'cpp' && '-Xmx12g' || '' }}
         with:
-          category: "/language:${{matrix.language}}"
+          category: "/language:${{ matrix.language }}${{ matrix.build-mode == 'autobuild' && '/build-mode:autobuild' || '' }}"
